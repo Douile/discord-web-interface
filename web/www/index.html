@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en" data-page="/">
+<head>
+<meta charset="utf-8"/>
+<link rel="stylesheet" href="/stylesheet.css"/>
+<script src="/src/index.js" async=""></script>
+</head>
+<body>
+<section data-page="/">
+  <h1>Example</h1>
+  <a id="login-button" href="/api/oauth2/login">Login</a>
+  <button class="button-logout">Logout</button>
+  <h4>User</h4>
+  <p id="user-name"></p>
+  <p id="user-id"></p>
+  <h4>Guilds</h4>
+  <div id="guilds"></div>
+</section>
+<section data-page="/guild">
+  <button class="button-back">Back</button>
+  <h4>Guild</h4>
+  <p id="guild-name"></p>
+  <p id="guild-id"></p>
+  <h4>Channels</h4>
+  <div id="channels"></div>
+</section>
+<section data-page="/channel">
+  <button class="button-back">Back</button>
+  <h4>Channel</h4>
+  <p id="channel-name"></p>
+  <p id="channel-id"></p>
+  <h4>Messages</h4>
+  <div id="messages"></div>
+  <button class="button button-new-message">New message</button>
+</section>
+<section data-page="/message">
+  <button class="button-back">Back</button>
+  <div style="display:flex;flex-wrap:wrap;flex-direction:row;">
+  <div class="editor message">
+    <div class="message--content"><textarea class="editor--content full-width" type="text" placeholder="Content"></textarea></div>
+    <div class="embed">
+      <div class="embed--pill"></div>
+      <div class="embed--rich">
+        <div class="embed--content">
+          <div class="embed--content-inner">
+            <div class="embed--author">
+              <img class="embed--author-icon" src="https://cdn.discordapp.com/embed/avatars/0.png"/>
+              <a class="embed--author-name"><input class="editor--author-name full-width" type="text" placeholder="Author name"/></a>
+            </div>
+            <a class="embed--title full-width"><input class="editor--title full-width" type="text" placeholder="Title"/></a>
+            <div class="embed--description"><textarea class="editor--description full-width" type="text" placeholder="Description"></textarea></div>
+            <div class="embed--fields">
+              <template id="template-embed-field">
+                <div class="embed--field editor--field">
+                  <div class="embed--field-name"><input class="editor--field-name full-width" type="text" placeholder="Name"/></div>
+                  <div class="embed--field-value"><textarea class="editor--field-value full-width" type="text" placeholder="Value"></textarea></div>
+                  <label for="inline">Inline: </label><input type="checkbox" name="inline" value="false"><button class="button-remove-field">Remove</button>
+                </div>
+              </template>
+              <div class="embed--field">
+                <button class="button-new-field full-width">New field</button>
+              </div>
+            </div>
+          </div>
+          <img class="embed--rich-thumb" src="https://cdn.discordapp.com/embed/avatars/0.png">
+        </div>
+        <a class="embed--thumb"><img src="https://cdn.discordapp.com/embed/avatars/0.png"/></a>
+        <div class="embed--footer">
+          <img class="embed--footer-icon" src="https://cdn.discordapp.com/embed/avatars/0.png"/>
+          <span class="embed--footer-text"><input class="editor--footer-text full-width" type="text" placeholder="Footer"/></span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="editor-output"></div>
+  </div>
+</section>
+</body>
+</html>
