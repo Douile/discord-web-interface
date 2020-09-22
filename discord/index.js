@@ -41,10 +41,27 @@ function _redis404(requestID) {
   }
 }
 
+/**
+* Publish a "404" response with given requestID
+* @param {string} requestID - RequestID to respond with 404 to
+*/
 function redis404(requestID) {
   return redisClient.publish('response', JSON.stringify({ id: requestID, code: 404 }));
 }
 
+/**
+* A web interface request object
+* @typedef {Object} WebInterfaceRequest
+* @property {string} type - The type of request (guild, member, message)
+* @property {string} id - The ID of the request to send back with response
+*/
+
+/**
+* Handle messages sent to the redis "request" channel
+* Message from web interface should be JSON encoded object {@link WebInterfaceRequest}
+* @param {string} channel - The channel name
+* @param {string|number} message - The associated message
+*/
 redisRequestHandler.on('message', function(channel, message) {
   if (channel !== 'request') return;
 
@@ -76,6 +93,9 @@ redisRequestHandler.on('message', function(channel, message) {
   }
 })
 
+/**
+* Update the redis store with the latest guild data from discord
+*/
 async function syncGuilds() {
   await redisClient.hmsetAsync('owners', Array.from(client.guilds.cache.values()).reduce((acc, guild) => acc.concat([guild.id, guild.ownerID]), []));
 }

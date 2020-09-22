@@ -61,6 +61,15 @@ redisResponses.on('message', function(channel, message) {
   }
 })
 
+/**
+* Send a request on the redis "request" channel
+* @async
+* @param {string} type - The type of request
+* @param {string} id - The request ID
+* @param {Object} [args] - Additional data to include with request
+* @param {number} [timeout] - The time to wait for a response (in ms)
+* @return {Promise<Object>} The response
+*/
 function redisRequest(type, id, args, timeout) {
   if (args === undefined) args = {};
   if (isNaN(timeout)) timeout = 1000;
@@ -77,6 +86,13 @@ function redisRequest(type, id, args, timeout) {
 
 }
 
+/**
+* Asyncronously generate a random string with given encoding and length
+* @async
+* @param {number} [size] - The length of the data (default: 32)
+* @param {string} [encoding] - The output encoding (default: hex)
+* @returns {Promise<string>} random string
+*/
 function generateState(size, encoding) {
   if (isNaN(size)) size = 32;
   if (!encoding) encoding = 'hex';
@@ -88,10 +104,21 @@ function generateState(size, encoding) {
   })
 }
 
+/**
+* Convert and object to URL from encoded data
+* @param {Object} object - The object to encode
+* @returns {string} URL form encoded data
+*/
 const objToForm = function(object) {
   return Object.entries(object).map(entry => `${encodeURIComponent(entry[0])}=${encodeURIComponent(entry[1])}`).join('&');
 }
 
+/**
+* Fetch a bearer token given oauth2 code
+* @async
+* @param {string} code - Oauth2 code
+* @returns {Promise<Object>} token data response
+*/
 async function discordToken(code) {
   const body = {
     client_id: CLIENT_ID,
@@ -107,6 +134,12 @@ async function discordToken(code) {
   return data;
 }
 
+/**
+* Revoke a discord bearer token
+* @async
+* @param {string} token - Bearer token
+* @returns {Promise<Object>} API response
+*/
 async function discordTokenRevoke(token) {
   const body = {
     client_id: CLIENT_ID,
@@ -121,6 +154,12 @@ async function discordTokenRevoke(token) {
   return data;
 }
 
+/**
+* Fetch the discord user associated with given API authorization
+* @async
+* @param {string} authroization - API authorization (passed directly as "Authorization" header)
+* @returns {Promise{Object}} API response
+*/
 async function discordUser(authorization) {
   const res = await fetch(URL_ME, { headers: { 'Authorization': authorization }});
   const data = await res.json();
@@ -140,13 +179,24 @@ router.get('/', (req, res) => {
 
 const activeOAuth = new Set();
 
+/**
+* Wraps an asyncronous express function, if there is an error then it redirects the request to ""/?error=500&description=Application+error"
+* @param {Function<Promise>} asyncFunction - Asyncronous function to wrap
+* @returns {oathwrap~inner} wrapper function
+*/
 function oauthWrap(asyncFunction) {
-  return function(req, res) {
+  /**
+  * Inner express function
+  * @param {Request} req - Express request
+  * @param {Response} res - Express response
+  */
+  const inner = function(req, res) {
     asyncFunction(req,res).then(null, function(error) {
       console.error(error);
       res.redirect(302, `/?error=500&description=Application+error`);
     });
   }
+  return inner;
 }
 
 router.get('/oauth2/login', oauthWrap(async (req, res) => {
@@ -154,38 +204,61 @@ router.get('/oauth2/login', oauthWrap(async (req, res) => {
   while (state === undefined || activeOAuth.has(state)) {
     state = await generateState();
   }
+  // Add state to active oauth logins
   activeOAuth.add(state);
+  // Redirect to discord for oauth2 authentication
   res.redirect(302, `${URL_AUTHORIZE}?response_type=code&client_id=${CLIENT_ID}&scope=${CLIENT_SCOPE}&state=${state}&redirect_uri=${encodeURIComponent(CLIENT_REDIRECT)}&prompt=consent`);
 }));
 
+// Handle the redirect back from discord oauth2
 router.get('/oauth2/code', oauthWrap(async (req, res) => {
-  res.clearCookie('user', { path: '/' });
+  res.clearCookie('user', { path: '/' }); // Clear any previous logins
   if (req.query.state !== undefined && req.query.state.length > 0 && activeOAuth.delete(req.query.state)) {
     if (req.query.error) {
+      // If oauth2 errored return to homepage with error
       res.redirect(302, `/?error=${encodeURIComponent(req.query.error)}&description=${req.query.error_description}`);
     } else {
-      const token = await discordToken(req.query.code);
-      const user = await discordUser(`${token.token_type} ${token.access_token}`);
-      console.log(await discordTokenRevoke(token.access_token));
-      const userState = await generateState(256, 'base64');
-      await redisClient.hsetAsync(['sessions', userState, JSON.stringify(user) ]);
-      res.cookie('user', userState, { expires: 0, httpOnly: true, /*secure: true,*/ });
-      res.redirect(302, '/');
+      const token = await discordToken(req.query.code); // Use oauth2 code to fetch token
+      const user = await discordUser(`${token.token_type} ${token.access_token}`); // Use token to fetch user
+      console.log(await discordTokenRevoke(token.access_token)); // Revoke token (no longer needed)
+      const userState = await generateState(256, 'base64'); // Generate a random state token for the user
+      await redisClient.hsetAsync(['sessions', userState, JSON.stringify(user) ]); // Store the state token with the user
+      res.cookie('user', userState, { expires: 0, httpOnly: true, /*secure: true,*/ }); // Set state cookie (secure should be true if https is enabled)
+      res.redirect(302, '/'); // Redirect back to homepage
     }
   } else {
     res.redirect(302,'/?error=400&description=Invalid+state');
   }
 }));
 
+/**
+* Wrap an asyncronous express function, if there is an error send a 500 Internal error response
+* @param {Function<Promise>} asyncFunction - Asyncronous function to wrap
+* @returns {apiWrap~inner} wrapper function
+*/
 function apiWrap(asyncFunction) {
-  return function(req, res) {
+  /**
+  * Inner express function
+  * @param {Request} req - Express request
+  * @param {Response} res - Express response
+  */
+  const inner = function(req, res) {
     asyncFunction(req, res).then(null, function(error) {
       console.error(error);
       res.status(500).send({ error: 500, message: 'Internal server error' });
     })
   }
+  return inner;
 }
 
+/**
+* Fetch user data from redis given the session cookie
+* Cookie parser middleware must be enabled for this to work
+* User structure {@link https://discord.com/developers/docs/resources/user#user-object-user-structure}
+* @async
+* @param {Request} req - Express request
+* @returns {Promise<?Object>} The user or null if no user associated with session
+*/
 async function fetchUser(req) {
   let user = null;
   if (req.cookies !== undefined && req.cookies.user) {
@@ -194,6 +267,7 @@ async function fetchUser(req) {
   return user;
 }
 
+// Return signed in user data
 router.get('/user', apiWrap(async (req, res) => {
   const user = await fetchUser(req);
   if (user !== null) {
@@ -203,6 +277,7 @@ router.get('/user', apiWrap(async (req, res) => {
   }
 }));
 
+// Logout a user (delete session)
 router.post('/user/logout', apiWrap(async (req, res) => {
   if (req.cookies !== undefined && req.cookies.user) {
     const deleted = await redisClient.hdelAsync(['sessions', req.cookies.user]);
@@ -216,6 +291,7 @@ router.post('/user/logout', apiWrap(async (req, res) => {
   }
 }))
 
+// Fetch guilds user has access to
 router.get('/user/guilds', apiWrap(async (req, res) => {
   const user = await fetchUser(req);
   if (user !== null) {
@@ -230,6 +306,7 @@ router.get('/user/guilds', apiWrap(async (req, res) => {
   }
 }));
 
+// Fetch detailed data about a guild (if user has access)
 router.get('/guild/:guild', apiWrap(async (req, res) => {
   const user = await fetchUser(req);
   if (user === null) return res.status(403).send({ error: '403', message: 'Unauthorized' });
@@ -242,6 +319,7 @@ router.get('/guild/:guild', apiWrap(async (req, res) => {
   res.send(guild);
 }));
 
+// Fetch information about a guild member (if user has access)
 router.get('/guild/:guild/member', apiWrap(async (req, res) => {
   const user = await fetchUser(req);
   if (user === null) return res.status(403).send({ error: '403', message: 'Unauthorized' });
